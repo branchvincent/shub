@@ -50,7 +50,7 @@ class UtilsTest(AssertInvokeRaisesMixin, unittest.TestCase):
             with utils.patch_sys_executable():
                 pass
 
-    @patch('shub.utils.find_executable')
+    @patch('shub.utils.which')
     def test_find_exe(self, mock_fe):
         mock_fe.return_value = '/usr/bin/python'
         self.assertEqual(utils.find_exe('python'), '/usr/bin/python')
@@ -66,7 +66,7 @@ class UtilsTest(AssertInvokeRaisesMixin, unittest.TestCase):
             'print("Hello", file=sys.stderr)',
         ]
         self.assertEqual(utils.run_cmd(cmd), '')
-        with self.assertRaisesRegexp(SubcommandException, r'STDERR[\s-]+Hello'):
+        with self.assertRaisesRegex(SubcommandException, r'STDERR[\s-]+Hello'):
             cmd[-1] += '; sys.exit(99)'
             utils.run_cmd(cmd)
 
@@ -74,7 +74,7 @@ class UtilsTest(AssertInvokeRaisesMixin, unittest.TestCase):
         # Change into test dir to make sure we're within a repo
         os.chdir(os.path.dirname(__file__))
         self.assertIsNotNone(utils.pwd_git_version())
-        with patch('shub.utils.find_executable', return_value=None):
+        with patch('shub.utils.which', return_value=None):
             self.assertIsNone(utils.pwd_git_version())
 
     @patch('shub.utils.pwd_git_version', return_value='ver_GIT')
@@ -274,46 +274,46 @@ class UtilsTest(AssertInvokeRaisesMixin, unittest.TestCase):
     def test_latest_github_release(self, mock_get):
         with self.runner.isolated_filesystem():
             mock_get.return_value.json.return_value = {'key': 'value'}
-            self.assertDictContainsSubset(
-                {'key': 'value'},
-                utils.latest_github_release(cache='./cache.txt'),
+            self.assertLessEqual(
+                {'key': 'value'}.items(),
+                utils.latest_github_release(cache='./cache.txt').items(),
             )
             mock_get.return_value.json.return_value = {'key': 'newvalue'}
-            self.assertDictContainsSubset(
-                {'key': 'value'},
-                utils.latest_github_release(cache='./cache.txt'),
+            self.assertLessEqual(
+                {'key': 'value'}.items(),
+                utils.latest_github_release(cache='./cache.txt').items(),
             )
-            self.assertDictContainsSubset(
-                {'key': 'newvalue'},
+            self.assertLessEqual(
+                {'key': 'newvalue'}.items(),
                 utils.latest_github_release(force_update=True,
-                                            cache='./cache.txt'),
+                                            cache='./cache.txt').items(),
             )
             # Garbage in cache
             mock_get.return_value.json.return_value = {'key': 'value'}
             with open('./cache.txt', 'w') as f:
                 f.write('abc')
-            self.assertDictContainsSubset(
-                {'key': 'value'},
-                utils.latest_github_release(cache='./cache.txt'),
+            self.assertLessEqual(
+                {'key': 'value'}.items(),
+                utils.latest_github_release(cache='./cache.txt').items(),
             )
             mock_get.return_value.json.return_value = {'key': 'newvalue'}
-            self.assertDictContainsSubset(
-                {'key': 'value'},
-                utils.latest_github_release(cache='./cache.txt'),
+            self.assertLessEqual(
+                {'key': 'value'}.items(),
+                utils.latest_github_release(cache='./cache.txt').items(),
             )
             # Readonly cache file
             mock_get.return_value.json.return_value = {'key': 'value'}
             with open('./cache.txt', 'w') as f:
                 f.write('abc')
             os.chmod('./cache.txt', stat.S_IRUSR | stat.S_IRGRP | stat.S_IROTH)
-            self.assertDictContainsSubset(
-                {'key': 'value'},
-                utils.latest_github_release(cache='./cache.txt'),
+            self.assertLessEqual(
+                {'key': 'value'}.items(),
+                utils.latest_github_release(cache='./cache.txt').items(),
             )
             mock_get.return_value.json.return_value = {'key': 'newvalue'}
-            self.assertDictContainsSubset(
-                {'key': 'newvalue'},
-                utils.latest_github_release(cache='./cache.txt'),
+            self.assertLessEqual(
+                {'key': 'newvalue'}.items(),
+                utils.latest_github_release(cache='./cache.txt').items(),
             )
             with open('./cache.txt', 'r') as f:
                 self.assertEqual(f.read(), 'abc')
@@ -382,20 +382,20 @@ class UtilsTest(AssertInvokeRaisesMixin, unittest.TestCase):
         self.assertIn('--no-binary=:all:', pipargs)
 
     def test_echo_short_log_if_deployed(self):
-        log_file = Mock(delete=None)
+        keep_log = None
         last_logs = ["last log line"]
 
         deployed = True
         for verbose in [True, False]:
-            utils.echo_short_log_if_deployed(
-                deployed, last_logs, log_file, verbose)
-            self.assertEqual(None, log_file.delete)
+            keep = utils.echo_short_log_if_deployed(
+                deployed, last_logs, keep_log, verbose)
+            self.assertEqual(None, keep)
 
         deployed = False
         for verbose in [True, False]:
-            utils.echo_short_log_if_deployed(
-                deployed, last_logs, log_file, verbose)
-            self.assertEqual(False, log_file.delete)
+            keep = utils.echo_short_log_if_deployed(
+                deployed, last_logs, keep_log, verbose)
+            self.assertEqual(True, keep)
 
     def test_write_and_echo_logs(self):
         last_logs = []
